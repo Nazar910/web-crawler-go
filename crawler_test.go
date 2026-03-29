@@ -9,35 +9,79 @@ import (
 	"testing"
 )
 
-func TestSimpleCrawl(t *testing.T) {
-	var mutex sync.Mutex
-	visitedPages := make([]string, 0)
-	server := httptest.NewServer(
+const indexHtml = `
+<html>
+<body>
+	<a href="/page2">link</a>
+</body>
+</html>
+`
+
+type mockServer struct {
+	server  *httptest.Server
+	visited []string
+	paths   map[string]string
+
+	mu sync.Mutex
+}
+
+func newMockServer(paths map[string]string) *mockServer {
+	mockServer := &mockServer{
+		visited: make([]string, 0),
+		paths:   paths,
+	}
+
+	mockServer.initHttp()
+
+	return mockServer
+}
+
+func (c *mockServer) initHttp() {
+	c.server = httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/":
-				mutex.Lock()
-				visitedPages = append(visitedPages, "/")
-				mutex.Unlock()
-				fmt.Fprint(
-					w,
-					"<html><body><a href=\"/page2\">link</a></body></html>",
-				)
-			case "/page2":
-				mutex.Lock()
-				visitedPages = append(visitedPages, "/page2")
-				mutex.Unlock()
-				fmt.Fprint(w, "nothing")
-			default:
+			c.mu.Lock()
+			c.visited = append(c.visited, r.URL.Path)
+			c.mu.Unlock()
+
+			if resp, ok := c.paths[r.URL.Path]; ok {
+				fmt.Fprint(w, resp)
+			} else {
 				http.NotFound(w, r)
 			}
 		}))
-	defer server.Close()
+}
 
-	Crawl(server.URL)
+func TestSimpleCrawl(t *testing.T) {
+	paths := map[string]string{
+		"/":      indexHtml,
+		"/page2": "nothing",
+	}
+	mockServer := newMockServer(paths)
+	defer mockServer.server.Close()
+
+	Crawl(mockServer.server.URL)
 
 	expected := []string{"/", "/page2"}
-	if !slices.Equal(expected, visitedPages) {
-		t.Errorf("expected to visit pages %v, but got %v", expected, visitedPages)
+	if !slices.Equal(expected, mockServer.visited) {
+		t.Errorf("expected to visit paes %v, but got %v", expected, mockServer.visited)
+	}
+}
+
+func TestDuplicateLinks(t *testing.T) {
+	paths := map[string]string{
+		"/":      indexHtml,
+		"/page2": `<a href="/page3">link to page3</a><a href="/page4">0_0</a>`,
+		"/page3": `<a href="/page4">link</a>`,
+		"/page4": "nothing",
+	}
+	mock := newMockServer(paths)
+	defer mock.server.Close()
+
+	Crawl(mock.server.URL)
+
+	expected := []string{"/", "/page2", "/page3", "/page4"}
+	slices.Sort(mock.visited)
+	if !slices.Equal(expected, mock.visited) {
+		t.Errorf("expected to visit pages %v, but got %v", expected, mock.visited)
 	}
 }

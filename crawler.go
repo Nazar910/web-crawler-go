@@ -108,6 +108,7 @@ func (c *crawler) schedule(seed string) {
 	defer close(c.done)
 
 	inFlight := 1
+	visited := make(map[string]struct{})
 
 	go func() { c.urlch <- seed }()
 
@@ -116,6 +117,10 @@ func (c *crawler) schedule(seed string) {
 		inFlight--
 
 		for _, link := range links {
+			if _, ok := visited[link]; ok {
+				continue
+			}
+			visited[link] = struct{}{}
 			inFlight++
 			go func(l string) { c.urlch <- l }(link)
 		}
@@ -140,7 +145,7 @@ func getCompleteLink(rawUrl, pHost, pScheme string) (string, error) {
 		return "", err
 	}
 
-	if parsedLink.Host == "" {
+	if parsedLink.Host == "" || parsedLink.Host != pHost {
 		parsedLink.Host = pHost
 		parsedLink.Scheme = pScheme
 	}
