@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"iter"
 	"net/http"
@@ -89,10 +88,10 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 	return func(yield func(string) bool) {
 		for n := range doc.Descendants() {
 			if n.Type == html.ElementNode && n.Data == "a" {
-				href, err := getHref(n)
+				href := getHref(n)
 
-				if err != nil {
-					fmt.Printf("%v\n", err)
+				if href == "" {
+					// a without href -> skip it
 					continue
 				}
 
@@ -131,13 +130,13 @@ func (c *crawler) schedule(seed string) {
 	close(c.urlch)
 }
 
-func getHref(n *html.Node) (string, error) {
+func getHref(n *html.Node) string {
 	for _, attr := range n.Attr {
 		if attr.Key == "href" {
-			return attr.Val, nil
+			return attr.Val
 		}
 	}
-	return "", errors.New("no href in a elem")
+	return ""
 }
 
 func getCompleteLink(rawUrl, pHost, pScheme string) (string, error) {
