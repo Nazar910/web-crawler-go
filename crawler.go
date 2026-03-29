@@ -10,13 +10,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-const startUrl = "http://books.toscrape.com"
-
-// const startUrl = "http://crawler-test.com"
-// const startUrl = "http://toscrape.com"
-// const startUrl = "http://quotes.toscrape.com"
-
-func Crawl() error {
+func Crawl(startLink string) error {
 	c := crawler{
 		urlch:   make(chan string),
 		results: make(chan []string),
@@ -26,7 +20,7 @@ func Crawl() error {
 	for range 10 {
 		go c.start()
 	}
-	go c.schedule(startUrl)
+	go c.schedule(startLink)
 
 	<-c.done
 
