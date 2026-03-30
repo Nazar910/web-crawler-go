@@ -6,7 +6,7 @@ The crawler targets [books.toscrape.com](http://books.toscrape.com) — a site p
 
 ## 10 Most Common Problems When Building a Production-Grade Web Crawler
 
-- [ ] **1. Duplicate URL Visitation** — How do you avoid crawling the same URL twice? At scale, the set of seen URLs grows enormous and naive in-memory maps won't cut it. URL normalization (trailing slashes, query param ordering, fragments, encoding) makes this harder than it looks.
+- [x] **1. Duplicate URL Visitation** — How do you avoid crawling the same URL twice? At scale, the set of seen URLs grows enormous and naive in-memory maps won't cut it. URL normalization (trailing slashes, query param ordering, fragments, encoding) makes this harder than it looks.
 
 - [ ] **2. Politeness & Rate Limiting** — Hammering a single host with hundreds of concurrent requests will get you blocked — or worse, take down a small site. How do you enforce per-domain rate limits and respect `robots.txt` directives?
 
