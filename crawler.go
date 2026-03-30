@@ -49,6 +49,8 @@ func (c *crawler) processLink(link string) []string {
 		return nil
 	}
 
+	// for now this just prints the link to stdout
+	// but it may be a write to a file or some db
 	fmt.Println(link)
 	req, err := http.NewRequest("GET", link, nil)
 
@@ -72,12 +74,16 @@ func (c *crawler) processLink(link string) []string {
 		return nil
 	}
 
-	return slices.AppendSeq(
-		make([]string, 0),
+	return slices.Collect(
 		c.linksIter(doc, urlLink.Host, urlLink.Scheme),
 	)
 }
 
+// it doesn't really make sense using iterator here
+// since the whole list is now used instead of sending each link to a channel
+// but since it is a pet project I'll leave it as is
+// just because I only recenlty learned Go iterators and
+// I kinda like how it looks ^_^
 func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for n := range doc.Descendants() {
