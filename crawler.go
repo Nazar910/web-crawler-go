@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"time"
 
 	"golang.org/x/net/html"
 )
+
+const RateLimit = 5
 
 func Crawl(startLink string) error {
 	c := crawler{
@@ -16,11 +19,16 @@ func Crawl(startLink string) error {
 		results: make(chan []string),
 		done:    make(chan struct{}),
 		client:  &http.Client{},
+
+		limiter: make(chan struct{}, RateLimit),
 	}
 	for range 2 {
 		go c.start()
 	}
+	// important for worker to start with all tokens capacity
+	c.fillTokens()
 	go c.schedule(startLink)
+	go c.limiterLoop()
 
 	<-c.done
 
@@ -33,11 +41,14 @@ type crawler struct {
 
 	done chan struct{}
 
+	limiter chan struct{}
+
 	client *http.Client
 }
 
 func (c *crawler) start() {
 	for link := range c.urlch {
+		<-c.limiter
 		c.results <- c.processLink(link)
 	}
 }
@@ -134,6 +145,28 @@ func (c *crawler) schedule(seed string) {
 	}
 
 	close(c.urlch)
+}
+
+func (c *crawler) limiterLoop() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			c.fillTokens()
+		case <-c.done:
+			return
+		}
+	}
+}
+
+func (c *crawler) fillTokens() {
+	for range RateLimit {
+		select {
+		case c.limiter <- struct{}{}:
+		default:
+		}
+	}
 }
 
 func getHref(n *html.Node) string {
