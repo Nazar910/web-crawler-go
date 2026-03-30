@@ -17,7 +17,7 @@ func Crawl(startLink string) error {
 		done:    make(chan struct{}),
 		client:  &http.Client{},
 	}
-	for range 10 {
+	for range 2 {
 		go c.start()
 	}
 	go c.schedule(startLink)
@@ -53,6 +53,7 @@ func (c *crawler) processLink(link string) []string {
 	// but it may be a write to a file or some db
 	fmt.Println(link)
 	req, err := http.NewRequest("GET", link, nil)
+	req.Header.Set("User-Agent", "GoLearnerBot/1.0")
 
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
