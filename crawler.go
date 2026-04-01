@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"iter"
 	"net/http"
@@ -23,13 +24,17 @@ func Crawl(startLink string) error {
 
 		limiter: make(chan struct{}, RateLimit),
 	}
-	robotsTxt, err := newRobots(startLink)
+	robotsTxt, err := newRobots(startLink, UserAgent)
 
 	if err != nil {
 		return fmt.Errorf("error while preparing robots.txt checker: %w", err)
 	}
 
 	c.robotsTxt = robotsTxt
+
+	if !c.robotsTxt.IsUserAgentAllowed() {
+		return errors.New("user agent is not allowed")
+	}
 
 	for range RateLimit {
 		go c.start()
@@ -147,6 +152,9 @@ func (c *crawler) schedule(seed string) {
 
 		for _, link := range links {
 			if _, ok := visited[link]; ok {
+				continue
+			}
+			if !c.robotsTxt.IsLinkAllowed(UserAgent) {
 				continue
 			}
 			visited[link] = struct{}{}
