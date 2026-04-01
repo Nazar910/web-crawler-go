@@ -61,9 +61,9 @@ func TestSimpleCrawl(t *testing.T) {
 
 	Crawl(mockServer.server.URL)
 
-	expected := []string{"/", "/page2"}
+	expected := []string{"/robots.txt", "/", "/page2"}
 	if !slices.Equal(expected, mockServer.visited) {
-		t.Errorf("expected to visit paes %v, but got %v", expected, mockServer.visited)
+		t.Errorf("expected to visit pages %v, but got %v", expected, mockServer.visited)
 	}
 }
 
@@ -79,7 +79,7 @@ func TestDuplicateLinks(t *testing.T) {
 
 	Crawl(mock.server.URL)
 
-	expected := []string{"/", "/page2", "/page3", "/page4"}
+	expected := []string{"/", "/page2", "/page3", "/page4", "/robots.txt"}
 	slices.Sort(mock.visited)
 	if !slices.Equal(expected, mock.visited) {
 		t.Errorf("expected to visit pages %v, but got %v", expected, mock.visited)

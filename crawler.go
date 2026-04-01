@@ -12,6 +12,7 @@ import (
 )
 
 const RateLimit = 5
+const UserAgent = "GoLearnerBot/1.0"
 
 func Crawl(startLink string) error {
 	c := crawler{
@@ -22,7 +23,15 @@ func Crawl(startLink string) error {
 
 		limiter: make(chan struct{}, RateLimit),
 	}
-	for range 2 {
+	robotsTxt, err := newRobots(startLink)
+
+	if err != nil {
+		return fmt.Errorf("error while preparing robots.txt checker: %w", err)
+	}
+
+	c.robotsTxt = robotsTxt
+
+	for range RateLimit {
 		go c.start()
 	}
 	// important for worker to start with all tokens capacity
@@ -44,6 +53,8 @@ type crawler struct {
 	limiter chan struct{}
 
 	client *http.Client
+
+	robotsTxt robotsTxt
 }
 
 func (c *crawler) start() {
@@ -64,7 +75,7 @@ func (c *crawler) processLink(link string) []string {
 	// but it may be a write to a file or some db
 	fmt.Println(link)
 	req, err := http.NewRequest("GET", link, nil)
-	req.Header.Set("User-Agent", "GoLearnerBot/1.0")
+	req.Header.Set("User-Agent", UserAgent)
 
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
