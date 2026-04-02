@@ -113,6 +113,39 @@ func (p *parser) allow() (string, error) {
 	return path, nil
 }
 
+func (p *parser) disallow() (string, error) {
+	start := p.pos
+
+	for unicode.IsLetter(rune(p.buf[p.pos])) {
+		p.pos++
+	}
+
+	disallowKw := string(p.buf[start:p.pos])
+
+	if disallowKw != "Disallow" {
+		return "", errors.New("wrong disallow keyword")
+	}
+
+	p.skipSpace()
+
+	if p.buf[p.pos] != ':' {
+		return "", fmt.Errorf("expected ':', got %c", p.buf[p.pos])
+	}
+
+	p.pos++
+	p.skipSpace()
+
+	start = p.pos
+
+	for p.pos < len(p.buf) && !unicode.IsSpace(rune(p.buf[p.pos])) {
+		p.pos++
+	}
+
+	path := string(p.buf[start:p.pos])
+
+	return path, nil
+}
+
 type rule struct {
 	path    string
 	allowed bool
@@ -150,6 +183,13 @@ func parseRobotsTxt(input string) (robotsRules, error) {
 				return robotsRules{}, err
 			}
 			r.agents[currAgent].rules = append(r.agents[currAgent].rules, rule{path, true})
+		case 'D':
+			path, err := p.disallow()
+			if err != nil {
+				return robotsRules{}, err
+			}
+
+			r.agents[currAgent].rules = append(r.agents[currAgent].rules, rule{path, false})
 		default:
 			return robotsRules{}, fmt.Errorf("unknown char: %c", p.buf[p.pos])
 		}
