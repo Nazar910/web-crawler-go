@@ -41,7 +41,7 @@ func (p *parser) skipSpace() {
 }
 
 func (p *parser) skipWs() {
-	for unicode.IsSpace(rune(p.buf[p.pos])) {
+	for p.pos < len(p.buf) && unicode.IsSpace(rune(p.buf[p.pos])) {
 		p.pos++
 	}
 }
@@ -110,6 +110,8 @@ func (p *parser) allow() (string, error) {
 
 	path := string(p.buf[start:p.pos])
 
+	p.skipWs()
+
 	return path, nil
 }
 
@@ -143,6 +145,8 @@ func (p *parser) disallow() (string, error) {
 
 	path := string(p.buf[start:p.pos])
 
+	p.skipWs()
+
 	return path, nil
 }
 
@@ -157,6 +161,42 @@ type agentRules struct {
 
 type robotsRules struct {
 	agents map[string]*agentRules
+}
+
+func (r *robotsRules) allowPath(agent, path string) {
+	if _, ok := r.agents[agent]; !ok {
+		r.agents[agent] = &agentRules{
+			rules: make([]rule, 0),
+		}
+	}
+
+	aRules := r.agents[agent]
+	for i := range aRules.rules {
+		if aRules.rules[i].path == path {
+			aRules.rules[i].allowed = true
+			return
+		}
+	}
+
+	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, true})
+}
+
+func (r *robotsRules) disallowPath(agent, path string) {
+	if _, ok := r.agents[agent]; !ok {
+		r.agents[agent] = &agentRules{
+			rules: make([]rule, 0),
+		}
+	}
+
+	aRules := r.agents[agent]
+	for i := range aRules.rules {
+		if aRules.rules[i].path == path {
+			aRules.rules[i].allowed = false
+			return
+		}
+	}
+
+	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, false})
 }
 
 func parseRobotsTxt(input string) (robotsRules, error) {
@@ -174,24 +214,20 @@ func parseRobotsTxt(input string) (robotsRules, error) {
 			if err != nil {
 				return robotsRules{}, err
 			}
-			r.agents[currAgent] = &agentRules{
-				rules: make([]rule, 0),
-			}
 		case 'A':
 			path, err := p.allow()
 			if err != nil {
 				return robotsRules{}, err
 			}
-			r.agents[currAgent].rules = append(r.agents[currAgent].rules, rule{path, true})
+			r.allowPath(currAgent, path)
 		case 'D':
 			path, err := p.disallow()
 			if err != nil {
 				return robotsRules{}, err
 			}
-
-			r.agents[currAgent].rules = append(r.agents[currAgent].rules, rule{path, false})
+			r.disallowPath(currAgent, path)
 		default:
-			return robotsRules{}, fmt.Errorf("unknown char: %c", p.buf[p.pos])
+			return robotsRules{}, fmt.Errorf("unknown char: %c (%U)", p.buf[p.pos], p.buf[p.pos])
 		}
 	}
 
