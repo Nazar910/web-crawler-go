@@ -28,6 +28,55 @@ type robotsChecker struct {
 func (r *robotsChecker) IsUserAgentAllowed() bool       { return true }
 func (r *robotsChecker) IsLinkAllowed(link string) bool { return true }
 
+type rule struct {
+	path    string
+	allowed bool
+}
+
+type agentRules struct {
+	rules []rule
+}
+
+type robotsRules struct {
+	agents map[string]*agentRules
+}
+
+func (r *robotsRules) allowPath(agent, path string) {
+	if _, ok := r.agents[agent]; !ok {
+		r.agents[agent] = &agentRules{
+			rules: make([]rule, 0),
+		}
+	}
+
+	aRules := r.agents[agent]
+	for i := range aRules.rules {
+		if aRules.rules[i].path == path {
+			aRules.rules[i].allowed = true
+			return
+		}
+	}
+
+	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, true})
+}
+
+func (r *robotsRules) disallowPath(agent, path string) {
+	if _, ok := r.agents[agent]; !ok {
+		r.agents[agent] = &agentRules{
+			rules: make([]rule, 0),
+		}
+	}
+
+	aRules := r.agents[agent]
+	for i := range aRules.rules {
+		if aRules.rules[i].path == path {
+			aRules.rules[i].allowed = false
+			return
+		}
+	}
+
+	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, false})
+}
+
 type parser struct {
 	buf    []byte
 	pos    int
@@ -150,55 +199,6 @@ func (p *parser) disallow() (string, error) {
 	return path, nil
 }
 
-type rule struct {
-	path    string
-	allowed bool
-}
-
-type agentRules struct {
-	rules []rule
-}
-
-type robotsRules struct {
-	agents map[string]*agentRules
-}
-
-func (r *robotsRules) allowPath(agent, path string) {
-	if _, ok := r.agents[agent]; !ok {
-		r.agents[agent] = &agentRules{
-			rules: make([]rule, 0),
-		}
-	}
-
-	aRules := r.agents[agent]
-	for i := range aRules.rules {
-		if aRules.rules[i].path == path {
-			aRules.rules[i].allowed = true
-			return
-		}
-	}
-
-	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, true})
-}
-
-func (r *robotsRules) disallowPath(agent, path string) {
-	if _, ok := r.agents[agent]; !ok {
-		r.agents[agent] = &agentRules{
-			rules: make([]rule, 0),
-		}
-	}
-
-	aRules := r.agents[agent]
-	for i := range aRules.rules {
-		if aRules.rules[i].path == path {
-			aRules.rules[i].allowed = false
-			return
-		}
-	}
-
-	r.agents[agent].rules = append(r.agents[agent].rules, rule{path, false})
-}
-
 func parseRobotsTxt(input string) (robotsRules, error) {
 	p := &parser{[]byte(input), 0, make(map[string][]string)}
 	r := robotsRules{
@@ -207,6 +207,7 @@ func parseRobotsTxt(input string) (robotsRules, error) {
 
 	var currAgent string
 	for p.pos < len(p.buf) {
+		p.skipWs()
 		switch p.buf[p.pos] {
 		case 'U', 'u':
 			var err error

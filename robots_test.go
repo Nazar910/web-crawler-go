@@ -81,3 +81,45 @@ func TestRobotsTxtParse(t *testing.T) {
 		})
 	}
 }
+
+func TestRobotsMultipleAgents(t *testing.T) {
+	input := dedent(`
+	User-agent: *
+	Disallow: /
+
+	User-agent: agent
+	Allow: /
+	`)
+	r, err := parseRobotsTxt(input)
+
+	if err != nil {
+		t.Fatalf("expected no error but got %v", err)
+	}
+
+	if len(r.agents) != 2 {
+		t.Errorf("expected agents number to be 2 but got %d", len(r.agents))
+	}
+
+	all, ok := r.agents["*"]
+
+	if !ok {
+		t.Fatal("expected to have entry for *")
+	}
+
+	expectedAllRules := []rule{{"/", false}}
+	if !slices.Equal(all.rules, expectedAllRules) {
+		t.Errorf("all mismatch: expected %v but got %v", expectedAllRules, all.rules)
+	}
+
+	agent, ok := r.agents["agent"]
+
+	if !ok {
+		t.Fatal("expected to have entry for \"agent\"")
+	}
+
+	expectedAgentRules := []rule{{"/", true}}
+
+	if !slices.Equal(agent.rules, expectedAgentRules) {
+		t.Errorf("agent rules mismatch: expected %v got %v", expectedAgentRules, agent.rules)
+	}
+}
