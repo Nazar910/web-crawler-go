@@ -2,13 +2,17 @@
 
 A hands-on exploration of building a concurrent web crawler in Go, working through real-world production problems one by one.
 
-The crawler targets [books.toscrape.com](http://books.toscrape.com) — a site purpose-built for practicing web scraping — and evolves incrementally as each challenge below is understood and addressed.
+The crawler is tested against site built for web scraping testing:
+* http://books.toscrape.com
+* http://crawler-test.com
+* http://toscrape.com
+* http://quotes.toscrape.com
 
 ## 10 Most Common Problems When Building a Production-Grade Web Crawler
 
 - [x] **1. Duplicate URL Visitation** — How do you avoid crawling the same URL twice? At scale, the set of seen URLs grows enormous and naive in-memory maps won't cut it. URL normalization (trailing slashes, query param ordering, fragments, encoding) makes this harder than it looks.
 
-- [ ] **2. Politeness & Rate Limiting** — Hammering a single host with hundreds of concurrent requests will get you blocked — or worse, take down a small site. How do you enforce per-domain rate limits and respect `robots.txt` directives?
+- [x] **2. Politeness & Rate Limiting** — Hammering a single host with hundreds of concurrent requests will get you blocked — or worse, take down a small site. How do you enforce per-domain rate limits and respect `robots.txt` directives?
 
 - [ ] **3. Concurrency Control** — Go makes concurrency easy with goroutines, but unbounded concurrency will exhaust file descriptors, memory, and remote servers. How do you control the number of in-flight requests globally and per-host without deadlocking your pipeline?
 

@@ -51,12 +51,19 @@ func TestRobotsTxtParse(t *testing.T) {
 		Disallow: /`,
 			expected: []rule{{"/", false}},
 		},
-
 		{
 			name: "allow which invalidate disallow",
 			input: `
 		User-agent: agent
 		Disallow: /
+		Allow: /`,
+			expected: []rule{{"/", true}},
+		},
+		{
+			name: "allow comments",
+			input: `
+		# robots.txt file comment
+		User-agent: agent
 		Allow: /`,
 			expected: []rule{{"/", true}},
 		},

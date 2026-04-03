@@ -26,6 +26,7 @@ type robotsChecker struct {
 
 // checks whether particular path is allowed for this agent
 // TODO: naive implementation, replace with longest path match check
+// TODO: consider adding * support
 func (r *robotsChecker) IsPathAllowed(path string) bool {
 	url, err := url.Parse(path)
 
@@ -233,6 +234,12 @@ func (p *parser) disallow() (string, error) {
 	return path, nil
 }
 
+func (p *parser) skipComment() {
+	for p.pos < len(p.buf) && p.buf[p.pos] != '\n' {
+		p.pos++
+	}
+}
+
 func parseRobotsTxt(input string) (robotsRules, error) {
 	p := &parser{[]byte(input), 0, make(map[string][]string)}
 	r := robotsRules{
@@ -261,6 +268,8 @@ func parseRobotsTxt(input string) (robotsRules, error) {
 				return robotsRules{}, err
 			}
 			r.disallowPath(currAgent, path)
+		case '#':
+			p.skipComment()
 		default:
 			return robotsRules{}, fmt.Errorf("unknown char: %c (%U)", p.buf[p.pos], p.buf[p.pos])
 		}

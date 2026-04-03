@@ -1,15 +1,17 @@
 package main
 
-import "log"
+import (
+	"flag"
+	"log"
+)
 
 func main() {
-	const startUrl = "http://books.toscrape.com"
+	target := flag.String("target", "http://books.toscrape.com", `
+	--target=http://books.toscrape.com
+	`)
+	flag.Parse()
 
-	// const startUrl = "http://crawler-test.com"
-	// const startUrl = "http://toscrape.com"
-	// const startUrl = "http://quotes.toscrape.com"
-
-	err := Crawl(startUrl)
+	err := Crawl(*target)
 
 	if err != nil {
 		log.Fatalf("error: %v", err)
