@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"iter"
 	"net/http"
@@ -31,10 +30,6 @@ func Crawl(startLink string) error {
 	}
 
 	c.robotsTxt = robotsTxt
-
-	if !c.robotsTxt.IsUserAgentAllowed() {
-		return errors.New("user agent is not allowed")
-	}
 
 	for range RateLimit {
 		go c.start()
@@ -110,7 +105,7 @@ func (c *crawler) processLink(link string) []string {
 // it doesn't really make sense using iterator here
 // since the whole list is now used instead of sending each link to a channel
 // but since it is a pet project I'll leave it as is
-// just because I only recenlty learned Go iterators and
+// just because I only recently learned Go iterators and
 // I kinda like how it looks ^_^
 func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string] {
 	return func(yield func(string) bool) {
@@ -139,7 +134,12 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 }
 
 func (c *crawler) schedule(seed string) {
+	defer close(c.urlch)
 	defer close(c.done)
+
+	if !c.robotsTxt.IsPathAllowed(seed) {
+		return
+	}
 
 	inFlight := 1
 	visited := make(map[string]struct{})
@@ -154,7 +154,7 @@ func (c *crawler) schedule(seed string) {
 			if _, ok := visited[link]; ok {
 				continue
 			}
-			if !c.robotsTxt.IsLinkAllowed(UserAgent) {
+			if !c.robotsTxt.IsPathAllowed(link) {
 				continue
 			}
 			visited[link] = struct{}{}
@@ -163,7 +163,6 @@ func (c *crawler) schedule(seed string) {
 		}
 	}
 
-	close(c.urlch)
 }
 
 func (c *crawler) limiterLoop() {

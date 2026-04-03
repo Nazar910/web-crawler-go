@@ -138,15 +138,11 @@ func TestRobotsChecker(t *testing.T) {
 		rRules: rRules,
 	}
 
-	if !checker.IsUserAgentAllowed() {
-		t.Error("expected agent to be allowed")
-	}
-
-	if !checker.IsLinkAllowed("/") {
+	if !checker.IsPathAllowed("http://foo.bar") {
 		t.Error("expected / route to be allowed")
 	}
 
-	if checker.IsLinkAllowed("/internal") {
+	if checker.IsPathAllowed("http://foo.bar/internal") {
 		t.Error("expected /internal to not be allowed")
 	}
 }

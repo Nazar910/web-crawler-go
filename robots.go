@@ -6,18 +6,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"unicode"
 )
 
 type robotsTxt interface {
-	IsUserAgentAllowed() bool
-	IsLinkAllowed(link string) bool
+	IsPathAllowed(path string) bool
 }
 
 type noop struct{}
 
-func (r *noop) IsUserAgentAllowed() bool       { return true }
-func (r *noop) IsLinkAllowed(link string) bool { return true }
+func (r *noop) IsPathAllowed(path string) bool { return true }
 
 // this will actually be checking robots.txt
 type robotsChecker struct {
@@ -25,44 +24,28 @@ type robotsChecker struct {
 	rRules robotsRules
 }
 
-// checks if there are pages available for this agent
-// TODO: is this required at all? maybe just check path /
-// before starting to crawl?
-func (r *robotsChecker) IsUserAgentAllowed() bool {
-	var allowedForAll bool
+// checks whether particular path is allowed for this agent
+// TODO: naive implementation, replace with longest path match check
+func (r *robotsChecker) IsPathAllowed(path string) bool {
+	url, err := url.Parse(path)
 
-	if starAgent, ok := r.rRules.agents["*"]; ok {
-		for _, r := range starAgent.rules {
-			if r.allowed {
-				allowedForAll = true
-				break
-			}
-		}
-	}
-
-	aRules, ok := r.rRules.agents[r.agent]
-
-	if !ok && !allowedForAll {
+	if err != nil {
 		return false
 	}
 
-	for _, r := range aRules.rules {
-		if r.allowed {
-			return true
-		}
+	clearedPath := url.Path
+
+	if clearedPath == "" {
+		// it should be the root path then
+		// set it to /
+		clearedPath = "/"
 	}
 
-	return false
-}
-
-// checks whether particular path is allowed for this agent
-// TODO: naive implementation, replace with longest path match check
-func (r *robotsChecker) IsLinkAllowed(link string) bool {
 	var allowed bool
 
 	if starAgent, ok := r.rRules.agents["*"]; ok {
 		for _, r := range starAgent.rules {
-			if r.path == link {
+			if r.path == clearedPath {
 				allowed = r.allowed
 			}
 		}
@@ -70,7 +53,7 @@ func (r *robotsChecker) IsLinkAllowed(link string) bool {
 
 	if agent, ok := r.rRules.agents[r.agent]; ok {
 		for _, r := range agent.rules {
-			if r.path == link {
+			if r.path == clearedPath {
 				allowed = r.allowed
 			}
 		}
