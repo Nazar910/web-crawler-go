@@ -26,7 +26,7 @@ type robotsChecker struct {
 }
 
 // checks if there are pages available for this agent
-// TODO: do we need this at all? can we just check path /
+// TODO: is this required at all? maybe just check path /
 // before starting to crawl?
 func (r *robotsChecker) IsUserAgentAllowed() bool {
 	var allowedForAll bool
