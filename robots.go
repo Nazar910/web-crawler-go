@@ -25,8 +25,59 @@ type robotsChecker struct {
 	rRules robotsRules
 }
 
-func (r *robotsChecker) IsUserAgentAllowed() bool       { return true }
-func (r *robotsChecker) IsLinkAllowed(link string) bool { return true }
+// checks if there are pages available for this agent
+// TODO: do we need this at all? can we just check path /
+// before starting to crawl?
+func (r *robotsChecker) IsUserAgentAllowed() bool {
+	var allowedForAll bool
+
+	if starAgent, ok := r.rRules.agents["*"]; ok {
+		for _, r := range starAgent.rules {
+			if r.allowed {
+				allowedForAll = true
+				break
+			}
+		}
+	}
+
+	aRules, ok := r.rRules.agents[r.agent]
+
+	if !ok && !allowedForAll {
+		return false
+	}
+
+	for _, r := range aRules.rules {
+		if r.allowed {
+			return true
+		}
+	}
+
+	return false
+}
+
+// checks whether particular path is allowed for this agent
+// TODO: naive implementation, replace with longest path match check
+func (r *robotsChecker) IsLinkAllowed(link string) bool {
+	var allowed bool
+
+	if starAgent, ok := r.rRules.agents["*"]; ok {
+		for _, r := range starAgent.rules {
+			if r.path == link {
+				allowed = r.allowed
+			}
+		}
+	}
+
+	if agent, ok := r.rRules.agents[r.agent]; ok {
+		for _, r := range agent.rules {
+			if r.path == link {
+				allowed = r.allowed
+			}
+		}
+	}
+
+	return allowed
+}
 
 type rule struct {
 	path    string

@@ -123,3 +123,30 @@ func TestRobotsMultipleAgents(t *testing.T) {
 		t.Errorf("agent rules mismatch: expected %v got %v", expectedAgentRules, agent.rules)
 	}
 }
+
+func TestRobotsChecker(t *testing.T) {
+	rRules := robotsRules{
+		agents: map[string]*agentRules{
+			"agent": &agentRules{
+				rules: []rule{{"/", true}, {"/internal", false}},
+			},
+		},
+	}
+
+	checker := robotsChecker{
+		agent:  "agent",
+		rRules: rRules,
+	}
+
+	if !checker.IsUserAgentAllowed() {
+		t.Error("expected agent to be allowed")
+	}
+
+	if !checker.IsLinkAllowed("/") {
+		t.Error("expected / route to be allowed")
+	}
+
+	if checker.IsLinkAllowed("/internal") {
+		t.Error("expected /internal to not be allowed")
+	}
+}
