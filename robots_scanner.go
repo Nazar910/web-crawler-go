@@ -39,17 +39,20 @@ func (s *scanner) advance() {
 }
 
 func (s *scanner) skipWs() {
-	for s.pos < len(s.buf) && unicode.IsSpace(rune(s.cursor)) {
-		s.advance()
+	for s.pos < len(s.buf) {
+		if unicode.IsSpace(rune(s.cursor)) {
+			s.advance()
+		} else if s.cursor == '#' {
+			s.skipComments()
+		} else {
+			return
+		}
 	}
 }
 
 func (s *scanner) skipComments() {
 	for s.pos < len(s.buf) && s.cursor == '#' {
 		for s.pos < len(s.buf) && s.cursor != '\n' {
-			s.advance()
-		}
-		if s.cursor == '\n' {
 			s.advance()
 		}
 	}
@@ -66,7 +69,6 @@ func (s *scanner) string() string {
 
 func (s *scanner) NextToken() (Token, error) {
 	s.skipWs()
-	s.skipComments()
 
 	if s.pos >= len(s.buf) {
 		return Token{Eof, ""}, nil
