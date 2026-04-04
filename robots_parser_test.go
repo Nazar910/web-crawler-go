@@ -63,6 +63,7 @@ func TestRobotsTxtParse(t *testing.T) {
 			name: "allow comments",
 			input: `
 		# robots.txt file comment
+		# and another line
 
 		User-agent: agent
 		Allow: /`,
