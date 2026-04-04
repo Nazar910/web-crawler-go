@@ -39,7 +39,6 @@ func (p *parser) process() error {
 	}
 
 	right := p.token.value
-
 	err = p.eat(String)
 
 	if err != nil {
@@ -61,14 +60,16 @@ func (p *parser) process() error {
 }
 
 func parseRobotsTxt(reader io.Reader) (robotsRules, error) {
-	r := robotsRules{
-		agents: make(map[string]*agentRules),
-	}
 	s, err := newScanner(reader)
 	if err != nil {
 		return robotsRules{}, err
 	}
-	p := parser{s: s, r: r}
+	p := parser{
+		s: s,
+		r: robotsRules{
+			agents: make(map[string]*agentRules),
+		},
+	}
 
 	token, err := p.s.NextToken()
 	p.token = token
