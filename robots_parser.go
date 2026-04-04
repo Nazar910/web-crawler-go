@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 )
 
 type parser struct {
@@ -59,11 +60,15 @@ func (p *parser) process() error {
 	return nil
 }
 
-func parseRobotsTxt(input string) (robotsRules, error) {
+func parseRobotsTxt(reader io.Reader) (robotsRules, error) {
 	r := robotsRules{
 		agents: make(map[string]*agentRules),
 	}
-	p := parser{s: newScanner([]byte(input)), r: r}
+	s, err := newScanner(reader)
+	if err != nil {
+		return robotsRules{}, err
+	}
+	p := parser{s: s, r: r}
 
 	token, err := p.s.NextToken()
 	p.token = token

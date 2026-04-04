@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 )
@@ -133,12 +132,7 @@ func newRobots(domain, agent string) (robotsTxt, error) {
 		return &noop{}, nil
 	}
 
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	parsed, err := parseRobotsTxt(string(b))
+	parsed, err := parseRobotsTxt(res.Body)
 
 	if err != nil {
 		return nil, err

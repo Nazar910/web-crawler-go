@@ -73,7 +73,8 @@ func TestRobotsTxtParse(t *testing.T) {
 	for _, test := range rulesCases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			r, err := parseRobotsTxt(strings.TrimSpace(dedent(test.input)))
+			reader := strings.NewReader(dedent(test.input))
+			r, err := parseRobotsTxt(reader)
 
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -99,7 +100,7 @@ func TestRobotsMultipleAgents(t *testing.T) {
 	User-agent: agent
 	Allow: /
 	`)
-	r, err := parseRobotsTxt(input)
+	r, err := parseRobotsTxt(strings.NewReader(input))
 
 	if err != nil {
 		t.Fatalf("expected no error but got %v", err)

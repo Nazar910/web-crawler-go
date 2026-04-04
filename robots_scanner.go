@@ -1,6 +1,12 @@
 package main
 
-import "unicode"
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"strings"
+	"unicode"
+)
 
 type TokenType int
 
@@ -16,70 +22,114 @@ type Token struct {
 }
 
 type scanner struct {
-	buf    []byte
-	pos    int
-	cursor byte
+	r *bufio.Reader
 }
 
-func newScanner(input []byte) scanner {
-	var cursor byte
-	if len(input) > 0 {
-		cursor = input[0]
+func newScanner(reader io.Reader) (scanner, error) {
+	r := bufio.NewReader(reader)
+
+	_, err := r.Peek(1)
+
+	if err == io.EOF {
+		return scanner{}, fmt.Errorf("empty robots.txt input: %w", err)
 	}
 
-	return scanner{input, 0, cursor}
+	return scanner{r: r}, nil
 }
 
-func (s *scanner) advance() {
-	s.pos++
+func (s *scanner) skipWs() error {
+	for {
+		b, err := s.r.Peek(1)
 
-	if s.pos < len(s.buf) {
-		s.cursor = s.buf[s.pos]
-	}
-}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
 
-func (s *scanner) skipWs() {
-	for s.pos < len(s.buf) {
-		if unicode.IsSpace(rune(s.cursor)) {
-			s.advance()
-		} else if s.cursor == '#' {
-			s.skipComments()
+			return err
+		}
+
+		ch := b[0]
+
+		if unicode.IsSpace(rune(ch)) {
+			s.r.ReadByte()
+		} else if ch == '#' {
+			err := s.skipComments()
+
+			if err != nil {
+				return err
+			}
 		} else {
-			return
+			return nil
 		}
 	}
 }
 
-func (s *scanner) skipComments() {
-	for s.pos < len(s.buf) && s.cursor == '#' {
-		for s.pos < len(s.buf) && s.cursor != '\n' {
-			s.advance()
+func (s *scanner) skipComments() error {
+	for {
+		b, err := s.r.Peek(1)
+
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		ch := b[0]
+		s.r.ReadByte()
+		if ch == '\n' {
+			return nil
 		}
 	}
 }
 
-func (s *scanner) string() string {
-	start := s.pos
-	for s.pos < len(s.buf) && (s.cursor != ':' && !unicode.IsSpace(rune(s.cursor))) {
-		s.advance()
+func (s *scanner) string() (string, error) {
+	var sb strings.Builder
+	for {
+		b, err := s.r.Peek(1)
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			return sb.String(), err
+		}
+
+		if b[0] == ':' || unicode.IsSpace(rune(b[0])) {
+			break
+		}
+
+		sb.WriteByte(b[0])
+		s.r.ReadByte()
 	}
 
-	return string(s.buf[start:s.pos])
+	return sb.String(), nil
 }
 
 func (s *scanner) NextToken() (Token, error) {
-	s.skipWs()
+	err := s.skipWs()
 
-	if s.pos >= len(s.buf) {
-		return Token{Eof, ""}, nil
+	if err != nil {
+		return Token{}, err
 	}
 
-	switch s.cursor {
+	b, err := s.r.Peek(1)
+
+	if err != nil {
+		if err == io.EOF {
+			return Token{Eof, ""}, nil
+		}
+		return Token{}, err
+	}
+
+	switch b[0] {
 	case ':':
-		s.advance()
+		s.r.ReadByte()
 		return Token{Colon, ":"}, nil
 	default:
-		strVal := s.string()
-		return Token{String, strVal}, nil
+		strVal, err := s.string()
+		return Token{String, strVal}, err
 	}
 }
