@@ -133,3 +133,22 @@ func TestRobotsMultipleAgents(t *testing.T) {
 		t.Errorf("agent rules mismatch: expected %v got %v", expectedAgentRules, agent.rules)
 	}
 }
+
+func TestAllowSitemap(t *testing.T) {
+	input := dedent(`
+	Sitemap: https://foo.bar/sitemap.xml
+	Allow: /
+	`)
+
+	r, err := parseRobotsTxt(strings.NewReader(input))
+
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+
+	expected := []string{"https://foo.bar/sitemap.xml"}
+
+	if !slices.Equal(r.sitemaps, expected) {
+		t.Errorf("sitemaps mismatch: expected %v but got %v", expected, r.sitemaps)
+	}
+}

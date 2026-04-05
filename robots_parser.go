@@ -52,6 +52,8 @@ func (p *parser) process() error {
 		p.r.allowPath(p.currentAgent, right)
 	case "disallow":
 		p.r.disallowPath(p.currentAgent, right)
+	case "sitemap":
+		p.r.sitemaps = append(p.r.sitemaps, right)
 	default:
 		return fmt.Errorf("unknown lhs: %s", leftL)
 	}

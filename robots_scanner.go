@@ -23,6 +23,8 @@ type Token struct {
 
 type scanner struct {
 	r *bufio.Reader
+
+	metcolon bool
 }
 
 func newScanner(reader io.Reader) (scanner, error) {
@@ -97,7 +99,7 @@ func (s *scanner) string() (string, error) {
 			return sb.String(), err
 		}
 
-		if b[0] == ':' || unicode.IsSpace(rune(b[0])) {
+		if !s.metcolon && b[0] == ':' || unicode.IsSpace(rune(b[0])) {
 			break
 		}
 
@@ -127,9 +129,11 @@ func (s *scanner) NextToken() (Token, error) {
 	switch b[0] {
 	case ':':
 		s.r.ReadByte()
+		s.metcolon = true
 		return Token{Colon, ":"}, nil
 	default:
 		strVal, err := s.string()
+		s.metcolon = false
 		return Token{String, strVal}, err
 	}
 }

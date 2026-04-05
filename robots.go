@@ -69,7 +69,8 @@ type agentRules struct {
 }
 
 type robotsRules struct {
-	agents map[string]*agentRules
+	agents   map[string]*agentRules
+	sitemaps []string
 }
 
 func (r *robotsRules) allowPath(agent, path string) {
