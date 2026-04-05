@@ -6,12 +6,16 @@ import (
 )
 
 func main() {
-	target := flag.String("target", "http://books.toscrape.com", `
-	--target=http://books.toscrape.com
-	`)
+	target := flag.String("target", "http://books.toscrape.com", "domain of the target site to crawl")
 	flag.Parse()
 
-	err := Crawl(*target)
+	repo, err := NewBboltRepo()
+
+	if err != nil {
+		log.Fatalf("error on repo init: %v", err)
+	}
+
+	err = Crawl(repo, *target)
 
 	if err != nil {
 		log.Fatalf("error: %v", err)

@@ -14,14 +14,16 @@ import (
 const RateLimit = 5
 const UserAgent = "GoLearnerBot/1.0"
 
-func Crawl(startLink string) error {
+func Crawl(repo Repo, startLink string) error {
 	c := crawler{
 		urlch:   make(chan string),
-		results: make(chan []string),
+		results: make(chan Result),
 		done:    make(chan struct{}),
 		client:  &http.Client{},
 
 		limiter: make(chan struct{}, RateLimit),
+
+		repo: repo,
 	}
 	robotsTxt, err := newRobots(startLink, UserAgent)
 
@@ -44,9 +46,14 @@ func Crawl(startLink string) error {
 	return nil
 }
 
+type Result struct {
+	link   string
+	childs []string
+}
+
 type crawler struct {
 	urlch   chan string
-	results chan []string
+	results chan Result
 
 	done chan struct{}
 
@@ -55,12 +62,14 @@ type crawler struct {
 	client *http.Client
 
 	robotsTxt robotsTxt
+
+	repo Repo
 }
 
 func (c *crawler) start() {
 	for link := range c.urlch {
 		<-c.limiter
-		c.results <- c.processLink(link)
+		c.results <- Result{link, c.processLink(link)}
 	}
 }
 
@@ -147,10 +156,12 @@ func (c *crawler) schedule(seed string) {
 	go func() { c.urlch <- seed }()
 
 	for inFlight > 0 {
-		links := <-c.results
+		result := <-c.results
+		c.repo.Processed(result.link)
 		inFlight--
 
-		for _, link := range links {
+		for _, link := range result.childs {
+			// link visited should be stored to persistent store
 			if _, ok := visited[link]; ok {
 				continue
 			}
@@ -158,7 +169,10 @@ func (c *crawler) schedule(seed string) {
 				continue
 			}
 			visited[link] = struct{}{}
+			c.repo.Scheduled(link)
 			inFlight++
+			// in production it would be better to use
+			// some buffered channel here
 			go func(l string) { c.urlch <- l }(link)
 		}
 	}
