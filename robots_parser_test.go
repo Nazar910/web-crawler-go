@@ -152,3 +152,17 @@ func TestAllowSitemap(t *testing.T) {
 		t.Errorf("sitemaps mismatch: expected %v but got %v", expected, r.sitemaps)
 	}
 }
+
+// only check that we don't error on Noindex directive
+func TestIgnoreNoindex(t *testing.T) {
+	input := dedent(`
+	User-agent: *
+	Noindex: /internal.html
+	`)
+
+	_, err := parseRobotsTxt(strings.NewReader(input))
+
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+}

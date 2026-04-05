@@ -54,6 +54,8 @@ func (p *parser) process() error {
 		p.r.disallowPath(p.currentAgent, right)
 	case "sitemap":
 		p.r.sitemaps = append(p.r.sitemaps, right)
+	case "noindex":
+		// just ignore noindex directive
 	default:
 		return fmt.Errorf("unknown lhs: %s", leftL)
 	}
