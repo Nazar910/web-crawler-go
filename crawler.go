@@ -25,6 +25,18 @@ func Crawl(repo Repo, startLink string) error {
 
 		repo: repo,
 	}
+
+	isCrawlCompleted, err := repo.IsCrawlCompleted(startLink)
+
+	if err != nil {
+		return err
+	}
+
+	if isCrawlCompleted {
+		fmt.Println("Crawl task is already completed")
+		return nil
+	}
+
 	robotsTxt, err := newRobots(startLink, UserAgent)
 
 	if err != nil {
@@ -38,7 +50,17 @@ func Crawl(repo Repo, startLink string) error {
 	}
 	// important for worker to start with all tokens capacity
 	c.fillTokens()
-	go c.schedule(startLink)
+	created, err := repo.StartCrawl(startLink)
+
+	if err != nil {
+		return err
+	}
+
+	if created {
+		repo.Scheduled(startLink)
+	}
+
+	go c.scheduler()
 	go c.limiterLoop()
 
 	<-c.done
@@ -142,18 +164,17 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 	}
 }
 
-func (c *crawler) schedule(seed string) {
+func (c *crawler) scheduler() {
 	defer close(c.urlch)
 	defer close(c.done)
 
-	if !c.robotsTxt.IsPathAllowed(seed) {
-		return
-	}
-
-	inFlight := 1
+	var inFlight int
 	visited := make(map[string]struct{})
 
-	go func() { c.urlch <- seed }()
+	for l := range c.repo.ScheduledSeq() {
+		inFlight++
+		go func() { c.urlch <- l }()
+	}
 
 	for inFlight > 0 {
 		result := <-c.results
