@@ -14,7 +14,7 @@ The crawler is tested against site built for web scraping testing:
 
 - [x] **2. Politeness & Rate Limiting** — Hammering a single host with hundreds of concurrent requests will get you blocked — or worse, take down a small site. How do you enforce per-domain rate limits and respect `robots.txt` directives?
 
-- [ ] **3. Concurrency Control** — Go makes concurrency easy with goroutines, but unbounded concurrency will exhaust file descriptors, memory, and remote servers. How do you control the number of in-flight requests globally and per-host without deadlocking your pipeline?
+- [x] **3. Concurrency Control** — Go makes concurrency easy with goroutines, but unbounded concurrency will exhaust file descriptors, memory, and remote servers. How do you control the number of in-flight requests globally and per-host without deadlocking your pipeline?
 
 - [ ] **4. Graceful Shutdown & State Persistence** — A long-running crawl may take hours or days. What happens when you need to stop it? How do you drain in-flight work, save the frontier (the queue of URLs yet to crawl), and resume later without losing progress or re-crawling everything?
 
