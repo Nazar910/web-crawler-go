@@ -15,17 +15,6 @@ const RateLimit = 5
 const UserAgent = "GoLearnerBot/1.0"
 
 func Crawl(repo Repo, startLink string) error {
-	c := crawler{
-		urlch:   make(chan string),
-		results: make(chan Result),
-		done:    make(chan struct{}),
-		client:  &http.Client{},
-
-		limiter: make(chan struct{}, RateLimit),
-
-		repo: repo,
-	}
-
 	isCrawlCompleted, err := repo.IsCrawlCompleted(startLink)
 
 	if err != nil {
@@ -43,7 +32,17 @@ func Crawl(repo Repo, startLink string) error {
 		return fmt.Errorf("error while preparing robots.txt checker: %w", err)
 	}
 
-	c.robotsTxt = robotsTxt
+	c := crawler{
+		urlch:   make(chan string),
+		results: make(chan Result),
+		done:    make(chan struct{}),
+		client:  &http.Client{},
+
+		limiter: make(chan struct{}, RateLimit),
+
+		repo:      repo,
+		robotsTxt: robotsTxt,
+	}
 
 	for range RateLimit {
 		go c.start()
