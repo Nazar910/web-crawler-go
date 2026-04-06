@@ -65,6 +65,8 @@ func Crawl(repo Repo, startLink string) error {
 
 	<-c.done
 
+	repo.EndCrawl(startLink)
+
 	return nil
 }
 

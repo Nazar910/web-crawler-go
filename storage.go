@@ -8,12 +8,19 @@ import (
 )
 
 type Repo interface {
+	// Store url as processed
 	Processed(url string) error
+	// Store url as currently scheduled for processing
 	Scheduled(url string) error
+	// Return scheduled links
 	ScheduledSeq() iter.Seq[string]
-
+	// Mark crawling process for startUrl started
+	// Returns true if created task record and
+	// returns false if crawl task already in progress
 	StartCrawl(url string) (bool, error)
+	// Mark crawling process as finished
 	EndCrawl(url string) error
+	// Returns whether Crawl task is already completed
 	IsCrawlCompleted(url string) (bool, error)
 }
 
@@ -59,7 +66,6 @@ func NewBboltRepo() (*bboltRepo, error) {
 	return &bboltRepo{db}, nil
 }
 
-// Store url as processed
 func (b *bboltRepo) Processed(url string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bsched := tx.Bucket(bucketScheduled)
@@ -74,7 +80,6 @@ func (b *bboltRepo) Processed(url string) error {
 	})
 }
 
-// Store url as currently scheduled for processing
 func (b *bboltRepo) Scheduled(url string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(bucketScheduled)
@@ -83,7 +88,6 @@ func (b *bboltRepo) Scheduled(url string) error {
 	})
 }
 
-// Return scheduled links
 func (b *bboltRepo) ScheduledSeq() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		b.db.View(func(tx *bolt.Tx) error {
@@ -109,9 +113,6 @@ var (
 	TaskCompleted  TaskStatus = []byte("completed")
 )
 
-// Mark crawling process for startUrl started
-// Returns true if created task record and
-// returns false if crawl task already in progress
 func (b *bboltRepo) StartCrawl(startUrl string) (bool, error) {
 	var created bool = true
 	err := b.db.Update(func(tx *bolt.Tx) error {
@@ -130,7 +131,6 @@ func (b *bboltRepo) StartCrawl(startUrl string) (bool, error) {
 	return created, err
 }
 
-// Mark crawling process as finished
 func (b *bboltRepo) EndCrawl(startUrl string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(bucketTasks)
@@ -139,7 +139,6 @@ func (b *bboltRepo) EndCrawl(startUrl string) error {
 	})
 }
 
-// Returns whether Crawl task is already completed
 func (b *bboltRepo) IsCrawlCompleted(startUrl string) (bool, error) {
 	var isCompleted bool
 
