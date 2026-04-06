@@ -171,7 +171,6 @@ func (c *crawler) scheduler() {
 	defer close(c.done)
 
 	var inFlight int
-	visited := make(map[string]struct{})
 
 	for l := range c.repo.ScheduledSeq() {
 		inFlight++
@@ -184,18 +183,20 @@ func (c *crawler) scheduler() {
 		inFlight--
 
 		for _, link := range result.childs {
-			// link visited should be stored to persistent store
-			if _, ok := visited[link]; ok {
+			visited, err := c.repo.IsVisitedOrScheduled(link)
+			if err != nil {
+				panic(err)
+			}
+			if visited {
 				continue
 			}
 			if !c.robotsTxt.IsPathAllowed(link) {
 				continue
 			}
-			visited[link] = struct{}{}
 			c.repo.Scheduled(link)
 			inFlight++
 			// in production it would be better to use
-			// some buffered channel here
+			// some buffered channel here to provide some backpressure
 			go func(l string) { c.urlch <- l }(link)
 		}
 	}

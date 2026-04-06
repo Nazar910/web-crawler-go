@@ -14,6 +14,9 @@ type Repo interface {
 	Scheduled(url string) error
 	// Return scheduled links
 	ScheduledSeq() iter.Seq[string]
+	// Return whether this url was already visited
+	// or at least already scheduled
+	IsVisitedOrScheduled(url string) (bool, error)
 	// Mark crawling process for startUrl started
 	// Returns true if created task record and
 	// returns false if crawl task already in progress
@@ -155,4 +158,30 @@ func (b *bboltRepo) IsCrawlCompleted(startUrl string) (bool, error) {
 	})
 
 	return isCompleted, err
+}
+
+func (b *bboltRepo) IsVisitedOrScheduled(url string) (bool, error) {
+	var found bool
+	err := b.db.View(func(tx *bolt.Tx) error {
+		bProcessed := tx.Bucket(bucketProcessed)
+		bScheduled := tx.Bucket(bucketScheduled)
+
+		record := bProcessed.Get([]byte(url))
+
+		if record != nil {
+			found = true
+			return nil
+		}
+
+		record = bScheduled.Get([]byte(url))
+
+		if record != nil {
+			found = true
+			return nil
+		}
+
+		return nil
+	})
+
+	return found, err
 }

@@ -53,7 +53,15 @@ func (c *mockServer) initHttp() {
 }
 
 type mockRepo struct {
+	visited   map[string]struct{}
 	scheduled []string
+}
+
+func newMockRepo() *mockRepo {
+	return &mockRepo{
+		visited:   make(map[string]struct{}),
+		scheduled: make([]string, 0),
+	}
 }
 
 func (m *mockRepo) Processed(url string) error {
@@ -71,6 +79,7 @@ func (m *mockRepo) Processed(url string) error {
 	return nil
 }
 func (m *mockRepo) Scheduled(url string) error {
+	m.visited[url] = struct{}{}
 	m.scheduled = append(m.scheduled, url)
 	return nil
 }
@@ -78,6 +87,10 @@ func (m *mockRepo) ScheduledSeq() iter.Seq[string]            { return slices.Va
 func (m *mockRepo) StartCrawl(url string) (bool, error)       { return true, nil }
 func (m *mockRepo) EndCrawl(url string) error                 { return nil }
 func (m *mockRepo) IsCrawlCompleted(url string) (bool, error) { return false, nil }
+func (m *mockRepo) IsVisitedOrScheduled(url string) (bool, error) {
+	_, ok := m.visited[url]
+	return ok, nil
+}
 
 var _ Repo = (*mockRepo)(nil)
 
@@ -89,7 +102,7 @@ func TestSimpleCrawl(t *testing.T) {
 	mockServer := newMockServer(paths)
 	defer mockServer.server.Close()
 
-	Crawl(&mockRepo{}, mockServer.server.URL)
+	Crawl(newMockRepo(), mockServer.server.URL)
 
 	expected := []string{"/robots.txt", "/", "/page2"}
 	if !slices.Equal(expected, mockServer.visited) {
@@ -107,7 +120,7 @@ func TestDuplicateLinks(t *testing.T) {
 	mock := newMockServer(paths)
 	defer mock.server.Close()
 
-	Crawl(&mockRepo{}, mock.server.URL)
+	Crawl(newMockRepo(), mock.server.URL)
 
 	expected := []string{"/", "/page2", "/page3", "/page4", "/robots.txt"}
 	slices.Sort(mock.visited)
