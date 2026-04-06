@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"iter"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -51,10 +52,32 @@ func (c *mockServer) initHttp() {
 		}))
 }
 
-type mockRepo struct{}
+type mockRepo struct {
+	scheduled []string
+}
 
-func (m *mockRepo) Processed(url string) error { return nil }
-func (m *mockRepo) Scheduled(url string) error { return nil }
+func (m *mockRepo) Processed(url string) error {
+	i := slices.Index(m.scheduled, url)
+
+	if i < 0 {
+		return nil
+	}
+
+	if i == len(m.scheduled)-1 {
+		m.scheduled = m.scheduled[:i]
+	} else {
+		m.scheduled = slices.Concat(m.scheduled[:i], m.scheduled[i+1:])
+	}
+	return nil
+}
+func (m *mockRepo) Scheduled(url string) error {
+	m.scheduled = append(m.scheduled, url)
+	return nil
+}
+func (m *mockRepo) ScheduledSeq() iter.Seq[string]            { return slices.Values(m.scheduled) }
+func (m *mockRepo) StartCrawl(url string) (bool, error)       { return true, nil }
+func (m *mockRepo) EndCrawl(url string) error                 { return nil }
+func (m *mockRepo) IsCrawlCompleted(url string) (bool, error) { return false, nil }
 
 var _ Repo = (*mockRepo)(nil)
 
