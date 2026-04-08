@@ -16,7 +16,7 @@ The crawler is tested against site built for web scraping testing:
 
 - [x] **3. Concurrency Control** — Go makes concurrency easy with goroutines, but unbounded concurrency will exhaust file descriptors, memory, and remote servers. How do you control the number of in-flight requests globally and per-host without deadlocking your pipeline?
 
-- [ ] **4. Graceful Shutdown & State Persistence** — A long-running crawl may take hours or days. What happens when you need to stop it? How do you drain in-flight work, save the frontier (the queue of URLs yet to crawl), and resume later without losing progress or re-crawling everything?
+- [x] **4. Graceful Shutdown & State Persistence** — A long-running crawl may take hours or days. What happens when you need to stop it? How do you drain in-flight work, save the frontier (the queue of URLs yet to crawl), and resume later without losing progress or re-crawling everything?
 
 - [ ] **5. Handling Malformed & Adversarial HTML** — The real web is messy. Broken tags, relative URLs, JavaScript-rendered content, meta redirects, `<base>` tags, and intentional spider traps (infinite URL spaces). How do you extract links reliably without getting stuck?
 
