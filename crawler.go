@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"slices"
+	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/net/html"
@@ -15,11 +20,14 @@ const RateLimit = 5
 const UserAgent = "GoLearnerBot/1.0"
 
 func Crawl(repo Repo, startLink string) error {
+	fmt.Printf("start: PID=%d\n", os.Getpid())
 	isCrawlCompleted, err := repo.IsCrawlCompleted(startLink)
 
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("crawl in progress")
 
 	if isCrawlCompleted {
 		fmt.Println("Crawl task is already completed")
@@ -32,9 +40,14 @@ func Crawl(repo Repo, startLink string) error {
 		return fmt.Errorf("error while preparing robots.txt checker: %w", err)
 	}
 
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	exitch := make(chan struct{})
+
 	c := crawler{
-		urlch:   make(chan string),
-		results: make(chan Result),
+		urlch:   make(chan string, RateLimit),
+		results: make(chan Result, RateLimit),
 		done:    make(chan struct{}),
 		client:  &http.Client{},
 
@@ -42,7 +55,12 @@ func Crawl(repo Repo, startLink string) error {
 
 		repo:      repo,
 		robotsTxt: robotsTxt,
+
+		signalCtx: signalCtx,
+		exitch:    exitch,
 	}
+
+	c.exitWg.Add(RateLimit + 1)
 
 	for range RateLimit {
 		go c.start()
@@ -62,9 +80,15 @@ func Crawl(repo Repo, startLink string) error {
 	go c.scheduler()
 	go c.limiterLoop()
 
-	<-c.done
-
-	repo.EndCrawl(startLink)
+	select {
+	case <-signalCtx.Done():
+		fmt.Println("Signal processing")
+		c.exitWg.Wait()
+		fmt.Println("workers and scheduler exited, proceed with closing repo")
+		repo.Close()
+	case <-c.done:
+		repo.EndCrawl(startLink)
+	}
 
 	return nil
 }
@@ -87,13 +111,18 @@ type crawler struct {
 	robotsTxt robotsTxt
 
 	repo Repo
+
+	signalCtx context.Context
+	exitch    chan struct{}
+	exitWg    sync.WaitGroup
 }
 
 func (c *crawler) start() {
+	defer c.exitWg.Done()
 	for link := range c.urlch {
-		<-c.limiter
 		c.results <- Result{link, c.processLink(link)}
 	}
+	fmt.Println("worker end loop")
 }
 
 func (c *crawler) processLink(link string) []string {
@@ -105,8 +134,8 @@ func (c *crawler) processLink(link string) []string {
 
 	// for now this just prints the link to stdout
 	// but it may be a write to a file or some db
-	fmt.Println(link)
-	req, err := http.NewRequest("GET", link, nil)
+	fmt.Printf("worker: %s\n", link)
+	req, err := http.NewRequestWithContext(c.signalCtx, "GET", link, nil)
 	req.Header.Set("User-Agent", UserAgent)
 
 	if err != nil {
@@ -165,38 +194,114 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 	}
 }
 
+type uniqueQueue struct {
+	set   map[string]struct{}
+	queue []string
+}
+
+func newUniqueQueue() uniqueQueue {
+	return uniqueQueue{
+		set:   make(map[string]struct{}),
+		queue: make([]string, 0),
+	}
+}
+
+func (q *uniqueQueue) enqueue(e string) {
+	if _, ok := q.set[e]; ok {
+		return
+	}
+
+	q.set[e] = struct{}{}
+	q.queue = append(q.queue, e)
+}
+
+func (q *uniqueQueue) dequeue() string {
+	e := q.queue[0]
+	q.queue = q.queue[1:]
+	delete(q.set, e)
+	return e
+}
+
+func (q *uniqueQueue) len() int {
+	return len(q.queue)
+}
+
 func (c *crawler) scheduler() {
 	defer close(c.urlch)
 	defer close(c.done)
 
 	var inFlight int
 
+	pendingch := make(chan string)
+
+	defer close(pendingch)
+
+	go func() {
+		for l := range pendingch {
+			<-c.limiter
+			c.urlch <- l
+		}
+	}()
+
+	pendingQueue := newUniqueQueue()
+
 	for l := range c.repo.ScheduledSeq() {
-		inFlight++
-		go func() { c.urlch <- l }()
+		pendingQueue.enqueue(l)
 	}
 
-	for inFlight > 0 {
-		result := <-c.results
-		c.repo.Processed(result.link)
-		inFlight--
+	// current implementation chooses at least once
+	// scheduling of the link instead of exactly once
+	// for the sake of simplicity
+	for inFlight > 0 || pendingQueue.len() > 0 {
+		fmt.Printf("loop: inFlight=%d, len(pendingQueue)=%d\n", inFlight, pendingQueue.len())
+		var activePendingch chan string
+		var nextLink string
 
-		for _, link := range result.childs {
-			visited, err := c.repo.IsVisitedOrScheduled(link)
-			if err != nil {
+		// new Go knowledge unlocked here:
+		// if your channel is nil then sending to it
+		// is a forever blocking operation
+		// which is super convenient in this case
+		// to not try to push anything into pengingch
+		// as this should means that we're waiting for
+		// workers to do the job and gather their results
+		if pendingQueue.len() > 0 {
+			activePendingch = pendingch
+			nextLink = pendingQueue.dequeue()
+		}
+
+		select {
+		case res := <-c.results:
+			inFlight--
+			for _, l := range res.childs {
+				visited, err := c.repo.IsProcessed(l)
+
+				if err != nil {
+					panic(err)
+				}
+				if visited || !c.robotsTxt.IsPathAllowed(l) {
+					continue
+				}
+				if err := c.repo.Scheduled(l); err != nil {
+					panic(err)
+				}
+
+				pendingQueue.enqueue(l)
+			}
+
+			if err := c.repo.Processed(res.link); err != nil {
 				panic(err)
 			}
-			if visited {
-				continue
-			}
-			if !c.robotsTxt.IsPathAllowed(link) {
-				continue
-			}
-			c.repo.Scheduled(link)
+		case activePendingch <- nextLink:
 			inFlight++
-			// in production it would be better to use
-			// some buffered channel here to provide some backpressure
-			go func(l string) { c.urlch <- l }(link)
+
+		case <-c.signalCtx.Done():
+			fmt.Println("Got exit signal in links loop, initiate stop")
+			for inFlight > 0 {
+				<-c.results
+				inFlight--
+			}
+			c.exitWg.Done()
+			return
 		}
 	}
 

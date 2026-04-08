@@ -87,10 +87,11 @@ func (m *mockRepo) ScheduledSeq() iter.Seq[string]            { return slices.Va
 func (m *mockRepo) StartCrawl(url string) (bool, error)       { return true, nil }
 func (m *mockRepo) EndCrawl(url string) error                 { return nil }
 func (m *mockRepo) IsCrawlCompleted(url string) (bool, error) { return false, nil }
-func (m *mockRepo) IsVisitedOrScheduled(url string) (bool, error) {
+func (m *mockRepo) IsProcessed(url string) (bool, error) {
 	_, ok := m.visited[url]
 	return ok, nil
 }
+func (m *mockRepo) Close() error { return nil }
 
 var _ Repo = (*mockRepo)(nil)
 
