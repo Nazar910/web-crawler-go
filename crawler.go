@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,17 +21,16 @@ const RateLimit = 5
 const UserAgent = "GoLearnerBot/1.0"
 
 func Crawl(repo Repo, startLink string) error {
-	fmt.Printf("start: PID=%d\n", os.Getpid())
 	isCrawlCompleted, err := repo.IsCrawlCompleted(startLink)
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("crawl in progress")
+	logger := NewLogger("crawler")
 
 	if isCrawlCompleted {
-		fmt.Println("Crawl task is already completed")
+		logger.Info("Crawl task is already completed")
 		return nil
 	}
 
@@ -42,8 +42,6 @@ func Crawl(repo Repo, startLink string) error {
 
 	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	exitch := make(chan struct{})
 
 	c := crawler{
 		urlch:   make(chan string, RateLimit),
@@ -57,7 +55,8 @@ func Crawl(repo Repo, startLink string) error {
 		robotsTxt: robotsTxt,
 
 		signalCtx: signalCtx,
-		exitch:    exitch,
+
+		logger: logger,
 	}
 
 	c.exitWg.Add(RateLimit + 1)
@@ -82,9 +81,9 @@ func Crawl(repo Repo, startLink string) error {
 
 	select {
 	case <-signalCtx.Done():
-		fmt.Println("Signal processing")
+		c.logger.Debug("Signal processing")
 		c.exitWg.Wait()
-		fmt.Println("workers and scheduler exited, proceed with closing repo")
+		c.logger.Debug("workers and scheduler exited, proceed with closing repo")
 		repo.Close()
 	case <-c.done:
 		repo.EndCrawl(startLink)
@@ -113,8 +112,9 @@ type crawler struct {
 	repo Repo
 
 	signalCtx context.Context
-	exitch    chan struct{}
 	exitWg    sync.WaitGroup
+
+	logger *slog.Logger
 }
 
 func (c *crawler) start() {
@@ -122,7 +122,7 @@ func (c *crawler) start() {
 	for link := range c.urlch {
 		c.results <- Result{link, c.processLink(link)}
 	}
-	fmt.Println("worker end loop")
+	c.logger.Debug("worker end loop")
 }
 
 func (c *crawler) processLink(link string) []string {
@@ -134,19 +134,19 @@ func (c *crawler) processLink(link string) []string {
 
 	// for now this just prints the link to stdout
 	// but it may be a write to a file or some db
-	fmt.Printf("worker: %s\n", link)
+	c.logger.Info(fmt.Sprintf("worker: %s", link))
 	req, err := http.NewRequestWithContext(c.signalCtx, "GET", link, nil)
 	req.Header.Set("User-Agent", UserAgent)
 
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		c.logger.Error(fmt.Sprintf("error: %v", err))
 		return nil
 	}
 
 	res, err := c.client.Do(req)
 
 	if err != nil {
-		fmt.Printf("error: %v\n", err)
+		c.logger.Warn(fmt.Sprintf("error: %v", err))
 		return nil
 	}
 
@@ -154,7 +154,7 @@ func (c *crawler) processLink(link string) []string {
 	doc, err := html.Parse(res.Body)
 
 	if err != nil {
-		fmt.Printf("html parse error: %v\n", err)
+		c.logger.Warn(fmt.Sprintf("html parser error: %v", err))
 		return nil
 	}
 
@@ -182,7 +182,7 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 				link, err := getCompleteLink(href, host, scheme)
 
 				if err != nil {
-					fmt.Printf("%v\n", err)
+					c.logger.Warn(fmt.Sprintf("link format error: %v", err))
 					continue
 				}
 
@@ -192,38 +192,6 @@ func (c *crawler) linksIter(doc *html.Node, host, scheme string) iter.Seq[string
 			}
 		}
 	}
-}
-
-type uniqueQueue struct {
-	set   map[string]struct{}
-	queue []string
-}
-
-func newUniqueQueue() uniqueQueue {
-	return uniqueQueue{
-		set:   make(map[string]struct{}),
-		queue: make([]string, 0),
-	}
-}
-
-func (q *uniqueQueue) enqueue(e string) {
-	if _, ok := q.set[e]; ok {
-		return
-	}
-
-	q.set[e] = struct{}{}
-	q.queue = append(q.queue, e)
-}
-
-func (q *uniqueQueue) dequeue() string {
-	e := q.queue[0]
-	q.queue = q.queue[1:]
-	delete(q.set, e)
-	return e
-}
-
-func (q *uniqueQueue) len() int {
-	return len(q.queue)
 }
 
 func (c *crawler) scheduler() {
@@ -253,7 +221,7 @@ func (c *crawler) scheduler() {
 	// scheduling of the link instead of exactly once
 	// for the sake of simplicity
 	for inFlight > 0 || pendingQueue.len() > 0 {
-		fmt.Printf("loop: inFlight=%d, len(pendingQueue)=%d\n", inFlight, pendingQueue.len())
+		c.logger.Debug(fmt.Sprintf("loop: inFlight=%d, len(pendingQueue)=%d\n", inFlight, pendingQueue.len()))
 		var activePendingch chan string
 		var nextLink string
 
@@ -295,7 +263,6 @@ func (c *crawler) scheduler() {
 			inFlight++
 
 		case <-c.signalCtx.Done():
-			fmt.Println("Got exit signal in links loop, initiate stop")
 			for inFlight > 0 {
 				<-c.results
 				inFlight--
@@ -351,4 +318,36 @@ func getCompleteLink(rawUrl, pHost, pScheme string) (string, error) {
 	}
 
 	return parsedLink.String(), nil
+}
+
+type uniqueQueue struct {
+	set   map[string]struct{}
+	queue []string
+}
+
+func newUniqueQueue() uniqueQueue {
+	return uniqueQueue{
+		set:   make(map[string]struct{}),
+		queue: make([]string, 0),
+	}
+}
+
+func (q *uniqueQueue) enqueue(e string) {
+	if _, ok := q.set[e]; ok {
+		return
+	}
+
+	q.set[e] = struct{}{}
+	q.queue = append(q.queue, e)
+}
+
+func (q *uniqueQueue) dequeue() string {
+	e := q.queue[0]
+	q.queue = q.queue[1:]
+	delete(q.set, e)
+	return e
+}
+
+func (q *uniqueQueue) len() int {
+	return len(q.queue)
 }
