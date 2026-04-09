@@ -234,7 +234,7 @@ func (c *crawler) scheduler() {
 		// workers to do the job and gather their results
 		if pendingQueue.len() > 0 {
 			activePendingch = pendingch
-			nextLink = pendingQueue.dequeue()
+			nextLink = pendingQueue.peek()
 		}
 
 		select {
@@ -261,6 +261,7 @@ func (c *crawler) scheduler() {
 			}
 		case activePendingch <- nextLink:
 			inFlight++
+			pendingQueue.dequeue()
 
 		case <-c.signalCtx.Done():
 			for inFlight > 0 {
@@ -346,6 +347,10 @@ func (q *uniqueQueue) dequeue() string {
 	q.queue = q.queue[1:]
 	delete(q.set, e)
 	return e
+}
+
+func (q *uniqueQueue) peek() string {
+	return q.queue[0]
 }
 
 func (q *uniqueQueue) len() int {
